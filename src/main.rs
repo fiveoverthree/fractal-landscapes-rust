@@ -6,6 +6,7 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
+use png_encode_mini::write_rgba_from_u8;
 
 
 struct Surface{
@@ -51,7 +52,6 @@ impl Surface {
         }
 
     }
-
     fn write_to_file(&self, name: &str) {
         let mut f = File::create(name.to_owned() + ".csv").expect("Unable to create file");
         for row in &self.surface{
@@ -64,6 +64,20 @@ impl Surface {
             reihe.pop();
             writeln!(f, "{}", reihe);
         }
+    }
+    fn write_to_image_file(&self, name: &str){
+        let mut buffer = vec!();
+        for row in &self.surface{
+            for item in row{
+                buffer.push(((item.clone()) * 150.0) as u8);
+                buffer.push(((item.clone()) * 150.0) as u8);
+                buffer.push(((item.clone()) * 150.0) as u8);
+                buffer.push(((item.clone()) * 150.0) as u8);
+            }
+        }
+        let mut f = File::create("pict/".to_owned() + name + ".png").expect("Unable to create file");
+        let res = write_rgba_from_u8(&mut f, &buffer[..], self.size as u32, self.size as u32);
+        println!("{:?}", res)
     }
 
     fn setsurface(&mut self, index: [usize; 2], value:f64) -> (){
@@ -368,9 +382,14 @@ impl Surface {
 }
 
 fn main() {
-    let mut a = Surface::from_file("output.csv");
-    a.thermal_erosion(45);
-    println!("{:?}", a.surface)
+    // TODO save image as greyscale and not as rgba.
+    // TODO use proper range insted of *200
+    let mut a = Surface::from(8);
+    a.generate(1.5);
+    for x in 0..100 {
+        a.thermal_erosion(45);
+        a.write_to_image_file(&x.to_string());
+    }
     /*
     a.generate(1.5);
     for x in 0..100{
