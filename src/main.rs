@@ -6,7 +6,6 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
-use png_encode_mini::write_rgba_from_u8;
 use image::{ImageBuffer, Luma};
 
 
@@ -17,6 +16,7 @@ struct Surface{
 }
 
 impl Surface {
+    // Creates Surface from scratch. Corresponding Object has size 2^sizemultiplier + 1
     fn from(sizemultiplier: usize) -> Surface {
         let size = usize::pow(2, sizemultiplier as u32)+1;
         Surface{
@@ -25,6 +25,7 @@ impl Surface {
             surface: vec![vec![0.0; size]; size],
         }
     }
+    // Creates Surface from existing csv file with name (name)
     fn from_file(name: &str) -> Surface{
         fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
             where P: AsRef<Path>, {
@@ -53,6 +54,7 @@ impl Surface {
         }
 
     }
+    // Write Surface to csv file. Path(name) needs to be provided
     fn write_to_file(&self, name: &str) {
         let mut f = File::create(name.to_owned() + ".csv").expect("Unable to create file");
         for row in &self.surface{
@@ -63,9 +65,9 @@ impl Surface {
             }
             // we do not want the last element to contain comma
             reihe.pop();
-            writeln!(f, "{}", reihe);
         }
     }
+    // write Surface to 16bit Greyscale PNG of name (name)
     fn write_to_image_file(&self, name: &str){
         let mut greyimage = ImageBuffer::new(self.size as u32, self.size as u32);
         for x in 0..((self.size - 1) as u32){
@@ -75,14 +77,13 @@ impl Surface {
         }
         greyimage.save_with_format("pict/".to_owned() + name + ".png", image::ImageFormat::Png);
     }
-
+    // set surface of a specific point to be x
     fn setsurface(&mut self, index: [usize; 2], value:f64) -> (){
         self.surface[index[0]][index[1]] = value;
     }
+    // generate a Fractal terrain with a dimension d of the line-segments
     fn generate(&mut self, dim:f64) {
-        /*
-        Function to generate a fractal terrain of a given dimension d
-         */
+ 
         fn calculate_midpoint(mean_height: f64, scale: f64, dim: f64) -> f64 {
             /*
             return midpoint of given scale
@@ -191,6 +192,7 @@ impl Surface {
         }
 
     }
+    // calculate thermal erosion of t+1 with a talus angle of (talus_angle)
     fn thermal_erosion(&mut self, talus_angle:usize) -> (){
         let mut temp_surface = self.surface.clone();
         for num0 in 0..self.surface.len(){
@@ -243,8 +245,8 @@ impl Surface {
         // update whole plane
         self.surface = temp_surface.clone();
     }
+    // returns a list of indexes of all neighbours, including diagonal ones
     fn get_neighbours(&self, index: [usize; 2]) -> Vec<[usize; 2]>{
-        // returns a list of indexes of all neighbours, including diagonal ones
         let x = self.surface.len();
         let y = self.surface[0].len();
         let mut to_return:Vec<[usize; 2]> = vec!();
@@ -287,14 +289,14 @@ impl Surface {
         }
         to_return
     }
-    fn fractal_dim(&self, start_coeff: usize, to: usize) -> f64{
-        /*
+    /*
         Calculates the fractal dimension of the surface, starting from boxsize = surface.shape / start_coeff
         up until boxsize = to
         this is because at boxsize = surface.shape && boxsize = 1, the dimension is only dependent
         on the grid itself, with a dimension of 2.0, whereas in between these values lies
         the interesting part
-         */
+    */
+    fn fractal_dim(&self, start_coeff: usize, to: usize) -> f64{
         fn generate_bool_map(float_array: &Vec<Vec<f64>>, vertsplit: usize) -> Vec<Vec<Vec<bool>>>{
             // returns a 3d bool array in the shape z, x, y wether surface is present in that box
             let total_height: f64 = 2.;
@@ -378,14 +380,8 @@ impl Surface {
 }
 
 fn main() {
-    // TODO save image as greyscale and not as rgba.
-    // TODO use proper range insted of *200
     let mut a = Surface::from(8);
     a.generate(1.5);
-    for x in 0..100 {
-        a.thermal_erosion(45);
-        a.write_to_image_file(&x.to_string());
-    }
     /*
     a.generate(1.5);
     for x in 0..100{
