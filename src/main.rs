@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 use png_encode_mini::write_rgba_from_u8;
+use image::{ImageBuffer, Luma};
 
 
 struct Surface{
@@ -66,18 +67,13 @@ impl Surface {
         }
     }
     fn write_to_image_file(&self, name: &str){
-        let mut buffer = vec!();
-        for row in &self.surface{
-            for item in row{
-                buffer.push(((item.clone()) * 150.0) as u8);
-                buffer.push(((item.clone()) * 150.0) as u8);
-                buffer.push(((item.clone()) * 150.0) as u8);
-                buffer.push(((item.clone()) * 150.0) as u8);
+        let mut greyimage = ImageBuffer::new(self.size as u32, self.size as u32);
+        for x in 0..((self.size - 1) as u32){
+            for y in 0..((self.size - 1) as u32){
+                greyimage.put_pixel(x, y, Luma([(self.surface[x as usize][y as usize] * 32768.0)as u16]));
             }
         }
-        let mut f = File::create("pict/".to_owned() + name + ".png").expect("Unable to create file");
-        let res = write_rgba_from_u8(&mut f, &buffer[..], self.size as u32, self.size as u32);
-        println!("{:?}", res)
+        greyimage.save_with_format("pict/".to_owned() + name + ".png", image::ImageFormat::Png);
     }
 
     fn setsurface(&mut self, index: [usize; 2], value:f64) -> (){
