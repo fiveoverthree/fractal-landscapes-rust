@@ -46,7 +46,7 @@ impl Surface {
             surface.pop();
         }
         let size = surface.len();
-        let sizemultiplier = (((size - 1) as f64).sqrt() as usize);
+        let sizemultiplier = ((size - 1) as f64).sqrt() as usize;
         Surface{
             sizemultiplier,
             size,
@@ -56,7 +56,7 @@ impl Surface {
     }
     // Write Surface to csv file. Path(name) needs to be provided
     fn write_to_file(&self, name: &str) {
-        let mut f = File::create(name.to_owned() + ".csv").expect("Unable to create file");
+        let mut f = File::create("/surfaces".to_owned() + name + ".csv").expect("Unable to create file");
         for row in &self.surface{
             let mut reihe = String::new();
             for cell in row{
@@ -65,6 +65,7 @@ impl Surface {
             }
             // we do not want the last element to contain comma
             reihe.pop();
+            writeln!(f, "{}", reihe).expect("Could not write to CSV file.")
         }
     }
     // write Surface to 16bit Greyscale PNG of name (name)
@@ -75,7 +76,7 @@ impl Surface {
                 greyimage.put_pixel(x, y, Luma([(self.surface[x as usize][y as usize] * 32768.0)as u16]));
             }
         }
-        greyimage.save_with_format("pict/".to_owned() + name + ".png", image::ImageFormat::Png);
+        greyimage.save_with_format("pict/".to_owned() + name + ".png", image::ImageFormat::Png).expect("Unable to write to PNG file.");
     }
     // set surface of a specific point to be x
     fn setsurface(&mut self, index: [usize; 2], value:f64) -> (){
@@ -111,7 +112,7 @@ impl Surface {
                     let s_w = surface[x_max][y_min];
                     let s_o = surface[x_max][y_max];
                     // calculate midpoint
-                    surface[x_mid][y_mid] = calculate_midpoint((n_w + n_o + s_w + s_o) / 4.0, (1.0/ (split_multiplier as f64)), dim);
+                    surface[x_mid][y_mid] = calculate_midpoint((n_w + n_o + s_w + s_o) / 4.0, 1.0/ (split_multiplier as f64), dim);
                 }
             }
         }
@@ -139,37 +140,37 @@ impl Surface {
                     // if at edge, only use 3 for calc
                     if surface[x_min][y_mid] == 0.0{
                         if x_min == 0{
-                            surface[x_min][y_mid] = calculate_midpoint((c + n_w + n_o) / 3.0, (1.0/ (split_multiplier as f64)), dim);
+                            surface[x_min][y_mid] = calculate_midpoint((c + n_w + n_o) / 3.0, 1.0/ (split_multiplier as f64), dim);
                         }
                         else {
-                            surface[x_min][y_mid] = calculate_midpoint((c + n_w + n_o + surface[x_min - half_size][y_mid]) / 4.0, (1.0/ (split_multiplier as f64)), dim);
+                            surface[x_min][y_mid] = calculate_midpoint((c + n_w + n_o + surface[x_min - half_size][y_mid]) / 4.0, 1.0/ (split_multiplier as f64), dim);
                         }
                     }
                     // left
                     if surface[x_mid][y_min] == 0.0{
                         if y_min == 0{
-                            surface[x_mid][y_min] = calculate_midpoint((c + n_w + s_w) / 3.0, (1.0/ (split_multiplier as f64)), dim);
+                            surface[x_mid][y_min] = calculate_midpoint((c + n_w + s_w) / 3.0, 1.0/ (split_multiplier as f64), dim);
                         }
                         else{
-                            surface[x_mid][y_min] = calculate_midpoint((c + n_w + s_w + surface[x_mid][y_min + half_size]) / 4.0, (1.0/ (split_multiplier as f64)), dim);
+                            surface[x_mid][y_min] = calculate_midpoint((c + n_w + s_w + surface[x_mid][y_min + half_size]) / 4.0, 1.0/ (split_multiplier as f64), dim);
                         }
                     }
                     // right
                     if surface[x_mid][y_max] == 0.0{
                         if y_max == max{
-                            surface[x_mid][y_max] = calculate_midpoint((c + n_o + s_o) / 3.0, (1.0/ (split_multiplier as f64)), dim);
+                            surface[x_mid][y_max] = calculate_midpoint((c + n_o + s_o) / 3.0, 1.0/ (split_multiplier as f64), dim);
                         }
                         else{
-                            surface[x_mid][y_max] = calculate_midpoint((c + n_o + s_o + surface[x_mid][y_max + half_size]) / 4.0, (1.0/ (split_multiplier as f64)), dim);
+                            surface[x_mid][y_max] = calculate_midpoint((c + n_o + s_o + surface[x_mid][y_max + half_size]) / 4.0, 1.0/ (split_multiplier as f64), dim);
                         }
                     }
                     // bottom
                     if surface[x_max][y_mid] == 0.0{
                         if x_max == max{
-                            surface[x_max][y_mid] = calculate_midpoint((c + s_w + s_o) / 3.0, (1.0/ (split_multiplier as f64)), dim);
+                            surface[x_max][y_mid] = calculate_midpoint((c + s_w + s_o) / 3.0, 1.0/ (split_multiplier as f64), dim);
                         }
                         else{
-                            surface[x_max][y_mid] = calculate_midpoint((c + n_o + s_o + surface[x_max + half_size][y_mid]) / 4.0, (1.0/ (split_multiplier as f64)), dim);
+                            surface[x_max][y_mid] = calculate_midpoint((c + n_o + s_o + surface[x_max + half_size][y_mid]) / 4.0, 1.0/ (split_multiplier as f64), dim);
                         }
                     }
                 }
@@ -232,7 +233,7 @@ impl Surface {
                 let lowest_neighbor = lowest_neighbor.unwrap();
                 // maximum displaced soil
                 // /8 to prevent disproportional growth
-                let d_s = ((self.surface[num0][num1] - lowest_neighbor)/8.0);
+                let d_s = (self.surface[num0][num1] - lowest_neighbor)/8.0;
                 // for all neighbours that satisfy talus angle, we can add some sediment from original
                 for neighbour in elegible_neighbours{
                     // reminder: neighbour heights must never be 0
@@ -382,6 +383,8 @@ impl Surface {
 fn main() {
     let mut a = Surface::from(8);
     a.generate(1.5);
+    println!("{:?}", a.fractal_dim(2, 2));
+    a.write_to_file("test")
     /*
     a.generate(1.5);
     for x in 0..100{
