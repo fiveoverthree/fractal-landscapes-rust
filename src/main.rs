@@ -56,7 +56,7 @@ impl Surface {
     }
     // Write Surface to csv file. Path(name) needs to be provided
     fn write_to_file(&self, name: &str) {
-        let mut f = File::create("/surfaces".to_owned() + name + ".csv").expect("Unable to create file");
+        let mut f = File::create(name.to_owned() + ".csv").expect("Unable to create file");
         for row in &self.surface{
             let mut reihe = String::new();
             for cell in row{
