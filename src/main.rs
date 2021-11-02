@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 use image::{ImageBuffer, Luma};
+use emath;
 
 
 struct Surface{
@@ -377,6 +378,44 @@ impl Surface {
             _ => {}
         }
         0.
+    }
+    fn hydraulic_erosion(&self){}
+}
+struct Droplet{
+    pos: emath::Vec2,
+    dir: emath::Vec2,
+    vel: f32,
+    water: f32,
+    sediment: f32,
+    inertia: f32,
+    minsediment: f32,
+    sCF: f32,
+    erosion_radius: usize,
+    deposition_speed: f32,
+    erosion_speed: f32,
+    gravity: f32,
+    evaporation_speed: f32,   
+}
+impl Droplet{
+    fn simulate(&self, surface: Surface, iterations: usize) {
+        // Calculates gradient vector for given position
+        fn gradient(surface: &Vec<Vec<f64>>, position: &emath::Vec2) -> emath::Vec2{
+            let cellCordsx = position.x.floor() as usize;
+            let cellCordsy = position.y.floor() as usize;
+            let x = position.x - cellCordsx as f32;
+            let  y = position.y - cellCordsy as f32;
+            let heightNW = surface[cellCordsx][cellCordsy] as f32;
+            let heightNE = surface[cellCordsx + 1][cellCordsy] as f32;
+            let heightSW = surface[cellCordsx][cellCordsy + 1] as f32;
+            let heightSE = surface[cellCordsx + 1][cellCordsy + 1] as f32;
+            let gradientx = (heightNE - heightNW) * (1.0 - y ) + (heightSE - heightSW) * y;
+            let gradienty = (heightSW - heightNW) * (1.0 - x) + (heightSE - heightNE) * x;
+            emath::Vec2::from([gradientx, gradienty])
+        }
+        // return sthe new direction in which the drop is flowing in
+        fn dirnew(dir: emath::Vec2, inertia: f32, position: emath::Vec2, surface: &Vec<Vec<f64>>) -> emath::Vec2{
+            ((dir * inertia) - gradient(&surface, &position)*(1.0 - inertia)).normalized()
+        }
     }
 }
 
