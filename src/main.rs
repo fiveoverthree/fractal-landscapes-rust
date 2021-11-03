@@ -1,3 +1,4 @@
+use rand_distr::num_traits::Pow;
 use rand_distr::{Normal, Distribution};
 use rand::thread_rng;
 use linreg::linear_regression_of;
@@ -397,7 +398,7 @@ struct Droplet{
     evaporation_speed: f32,   
 }
 impl Droplet{
-    fn simulate(&self, surface: Surface, iterations: usize) {
+    fn simulate(&mut self, surface: &mut Surface, iterations: usize) {
         // Calculates gradient vector for given position
         fn gradient(surface: &Vec<Vec<f64>>, position: &emath::Vec2) -> emath::Vec2{
             let cellCordsx = position.x.floor() as usize;
@@ -408,31 +409,67 @@ impl Droplet{
             let heightNE = surface[cellCordsx + 1][cellCordsy] as f32;
             let heightSW = surface[cellCordsx][cellCordsy + 1] as f32;
             let heightSE = surface[cellCordsx + 1][cellCordsy + 1] as f32;
-            let gradientx = (heightNE - heightNW) * (1.0 - y ) + (heightSE - heightSW) * y;
-            let gradienty = (heightSW - heightNW) * (1.0 - x) + (heightSE - heightNE) * x;
+            let gradientx = (heightSE - heightSW) * (1.0 - y) + (heightNE - heightNW) * y;
+            let gradienty = (heightSE - heightNE) * (1.0 - x) + (heightSW - heightNW) * x;
             emath::Vec2::from([gradientx, gradienty])
         }
         // return sthe new direction in which the drop is flowing in
-        fn dirnew(dir: emath::Vec2, inertia: f32, position: emath::Vec2, surface: &Vec<Vec<f64>>) -> emath::Vec2{
-            ((dir * inertia) - gradient(&surface, &position)*(1.0 - inertia)).normalized()
+        fn dirnew(dir: &emath::Vec2, inertia: &f32, position: &emath::Vec2, surface: &Vec<Vec<f64>>) -> emath::Vec2{
+            ((*dir * *inertia) - gradient(&surface, &position)*(1.0 - *inertia)).normalized()
         }
+        // updates position
+    
+        self.dir = dirnew(&self.dir, &self.inertia, &self.pos, &surface.surface);
+        // println!("{:?}", self.dir);
+        self.pos += self.dir;
     }
 }
 
 fn main() {
+    /*
+    works
+    */
     let mut a = Surface::from(8);
-    a.generate(1.5);
-    println!("{:?}", a.fractal_dim(2, 2));
-    a.write_to_file("test")
+    a.setsurface([50,50], 0.0);
+    a.setsurface([50,51], 0.0);
+    a.setsurface([51,51], 1.0);
+    a.setsurface([51,50], 1.0);
     /*
     a.generate(1.5);
-    for x in 0..100{
-        a.thermal_erosion(45);
-        a.write_to_file(&x.to_string());
+    a.thermal_erosion(45);
+    a.thermal_erosion(45);
+    a.thermal_erosion(45);
+    a.thermal_erosion(45);
+    a.thermal_erosion(45);
+    a.thermal_erosion(45);
+    a.thermal_erosion(45);
+    */
+    let mut drop =  Droplet{
+        pos: emath::Vec2::from([50.5, 50.5]),
+        dir: emath::Vec2::from([0.0, 0.0]),
+        vel: 0.0,
+        water: 1.0,
+        sediment: 0.0,
+        inertia: 0.8, // high value = old dir taken into account more. range 0..1
+        minsediment: 0.01,
+        sCF: 4.0,
+        erosion_radius: 1,
+        deposition_speed: 0.2,
+        erosion_speed: 0.2,
+        gravity: 10.0,
+        evaporation_speed: 0.01,
+
+    };    
+    drop.simulate(&mut a, 1);
+    drop.simulate(&mut a, 1);
+    //a.generate(1.5);
+    
+    for x in 0..10{
+        a.write_to_image_file(&x.to_string());
+        drop.simulate(&mut a, 1);
     }
+    
     // a.thermal_erosion(45);
     // leaving out first and last, as those are determined by the grid itself and not its structure
-    println!("{:?}", a.fractal_dim(2, 2));
-
-     */
+    // println!("{:?}", a.fractal_dim(2, 2));
 }
