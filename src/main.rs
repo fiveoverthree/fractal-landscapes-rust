@@ -398,7 +398,7 @@ struct Droplet{
     evaporation_speed: f32,   
 }
 impl Droplet{
-    fn simulate(&mut self, surface: &mut Surface, iterations: usize) {
+    fn simulate(&mut self, surface: &mut Surface, iterations: usize, size: usize) {
         // Calculates gradient vector for given position
         fn gradient(surface: &Vec<Vec<f64>>, position: &emath::Vec2) -> emath::Vec2{
             let cellCordsx = position.x.floor() as usize;
@@ -417,11 +417,95 @@ impl Droplet{
         fn dirnew(dir: &emath::Vec2, inertia: &f32, position: &emath::Vec2, surface: &Vec<Vec<f64>>) -> emath::Vec2{
             ((*dir * *inertia) - gradient(&surface, &position)*(1.0 - *inertia)).normalized()
         }
-        // updates position
-    
-        self.dir = dirnew(&self.dir, &self.inertia, &self.pos, &surface.surface);
-        // println!("{:?}", self.dir);
-        self.pos += self.dir;
+        fn deposit(surface: &mut Vec<Vec<f64>>, pos: &emath::Vec2, amount: &f32){
+            let cellCordsx = pos.x.floor() as usize;
+            let cellCordsy = pos.y.floor() as usize;
+            let x = pos.x - cellCordsx as f32;
+            let y = pos.x - cellCordsy as f32;
+            // NW
+            surface[cellCordsx][cellCordsy] += (amount * (1.0 - x) * (1.0 - y)) as f64;
+            // NE
+            surface[cellCordsx + 1][cellCordsy] += (amount * x * (1.0 - y)) as f64;
+            // SW
+            surface[cellCordsx][cellCordsy + 1] += (amount * (1.0 - x) * y) as f64;
+            // SE
+            surface[cellCordsx + 1][cellCordsy + 1] += (amount * x * y) as f64;
+        }
+        fn erode(surface: &mut Vec<Vec<f64>>, pos: &emath::Vec2, amount: &f32, erosion_radius: &usize, erosion_speed: &f32){
+            // calculate maxima to determine weights
+            let mut maxima = Vec::new();
+            for (num0, row) in surface.iter().enumerate(){
+                for (num1, cell) in row.iter().enumerate(){
+                    maxima.push(f64::max(0.0, (*erosion_radius as f64) - (emath::vec2(num0 as f32, num1 as f32) - *pos).length() as f64));
+                }
+            }
+            let s:f64 = maxima.iter().sum();
+            // erode
+            for (num0, row) in surface.clone().iter().enumerate(){
+                for (num1, _cell) in row.iter().enumerate(){
+                    surface[num0][num1] -= (f64::max(0.0, *erosion_radius as f64 - ((emath::vec2(num0 as f32, num1 as f32) - *pos)).length() as f64)/s)*(*erosion_speed as f64)*(*amount as f64);
+                }
+            }
+        }
+        fn mean_height(surface: &Vec<Vec<f64>>, position: &emath::Vec2) -> f32{
+            let cellCordsx = position.x.floor() as usize;
+            let cellCordsy = position.y.floor() as usize;
+            let x = position.x - cellCordsx as f32;
+            let  y = position.y - cellCordsy as f32;
+            let heightNW = surface[cellCordsx][cellCordsy] as f32;
+            let heightNE = surface[cellCordsx + 1][cellCordsy] as f32;
+            let heightSW = surface[cellCordsx][cellCordsy + 1] as f32;
+            let heightSE = surface[cellCordsx + 1][cellCordsy + 1] as f32;
+            // weighted arithmetic mean: Sum(weights*heights)/sum(weights)
+            (heightNW*(emath::vec2(x, 1.0-y).length()) 
+            + heightNE*(emath::vec2(1.0-x, 1.0-y).length()) 
+            + heightSE*(emath::vec2(1.0-x, y).length())
+            + heightSW*(emath::vec2(x, y).length()))
+            / ((emath::vec2(x, y).length())
+            + emath::vec2(1.0-x, y).length()
+            + emath::vec2(x, 1.0-y).length()
+            + emath::vec2(1.0-x, 1.0-y).length())
+        }
+        fn sedimentCapacity(h_diff: &f32, minsediment: &f32, vel: &f32, water: &f32, sedimentCapacityFactor: &f32) -> f64{
+            (f32::max(-h_diff, *minsediment) * vel * water * sedimentCapacityFactor) as f64
+        }
+        for x in 0..iterations{
+            let h_old = mean_height(&surface.surface, &self.pos);
+            let pos_old = self.pos.clone();
+            // update position
+            self.pos += dirnew(&self.dir, &self.inertia, &self.pos, &surface.surface);
+            // if out of bounds, cancel drop
+            if self.pos.x < 0.0 || self.pos.x > (size as f32) || self.pos.y < 0.0 || self.pos.y > (size as f32){
+                break;
+            }
+            let h_new = mean_height(&surface.surface, &self.pos);
+            let deltaheight = h_new-h_old;
+            let sedCap = sedimentCapacity(&deltaheight, &self.minsediment, &self.vel, &self.water, &self.sCF);
+            // we deposit if moving uphill or self.sediment > sedCap
+            // moving uphill, deposit at old pos to close gap
+            if deltaheight > 0.0{
+                let to_deposit = f32::min(deltaheight, self.sediment);
+                self.sediment -= to_deposit;
+                deposit(&mut surface.surface, &pos_old, &to_deposit);
+            } else {
+                if self.sediment > sedCap as f32{
+                    // drop has more sediment than it can hold -> depositing
+                    let to_deposit = (self.sediment - sedCap as f32) * self.deposition_speed;
+                    self.sediment -= to_deposit;
+                    deposit(&mut surface.surface, &pos_old, &to_deposit);
+                } else {
+                    // if drop has less sediment than it is allowed to, erode from the map
+                    let to_erode = f32::min((sedCap as f32 - self.sediment)*self.erosion_speed, -deltaheight);
+                    erode(&mut surface.surface, &self.pos, &to_erode, &self.erosion_radius, &self.erosion_speed);
+                    self.sediment += to_erode;
+                }
+            }
+            // calculate new speed
+            self.vel = f32::sqrt(self.vel.powf(2.0) + f32::abs(deltaheight*self.gravity));
+            // calculate new water level
+            self.water *= 1.0-self.evaporation_speed;
+
+        }
     }
 }
 
@@ -459,17 +543,7 @@ fn main() {
         gravity: 10.0,
         evaporation_speed: 0.01,
 
-    };    
-    drop.simulate(&mut a, 1);
-    drop.simulate(&mut a, 1);
+    };
     //a.generate(1.5);
-    
-    for x in 0..10{
-        a.write_to_image_file(&x.to_string());
-        drop.simulate(&mut a, 1);
-    }
-    
-    // a.thermal_erosion(45);
-    // leaving out first and last, as those are determined by the grid itself and not its structure
     // println!("{:?}", a.fractal_dim(2, 2));
 }
