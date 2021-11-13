@@ -76,7 +76,7 @@ impl Surface {
         for x in 0..((self.size) as u32){
             for y in 0..((self.size) as u32){
                 // * 32768.0
-                greyimage.put_pixel(x, y, Luma([((self.surface[x as usize][y as usize] )  * 1000.0 )as u16]));
+                greyimage.put_pixel(x, y, Luma([(((self.surface[x as usize][y as usize] ) / self.size as f64) * 32768.0 )as u16]));
             }
         }
         greyimage.save_with_format("pict/".to_owned() + name + ".png", image::ImageFormat::Png).expect("Unable to write to PNG file.");
@@ -385,17 +385,17 @@ impl Surface {
         let mut drop =  Droplet{
             pos: emath::Vec2::from([rng.gen_range(0.0..(self.size - 1)as f32), rng.gen_range(0.0..(self.size - 1) as f32)]),
             dir: emath::Vec2::from([0.0, 0.0]),
-            vel: 0.0001,
+            vel: 1.0,
             water: 1.0,
             sediment: 0.0,
-            inertia: 0.01, // high value = old dir taken into account more. range 0..1
-            pminslope: 0.0001,
-            sCF: 20.0,
-            erosion_radius: 1,
-            deposition_speed: 0.005,
-            erosion_speed: 0.005,
+            inertia: 0.0, // high value = old dir taken into account more. range 0..1
+            pminslope: 0.01,
+            sCF: 2.0,
+            erosion_radius: 2,
+            deposition_speed: 0.05, // max 1, only when drop suddenly has more sediment than it can hold
+            erosion_speed: 0.05, // max 1
             gravity: 10.0,
-            evaporation_speed: 0.001,
+            evaporation_speed: 0.1,
     
         };
         drop.simulate(&mut self.surface, iterations, self.size)
@@ -470,6 +470,7 @@ impl Droplet{
         }
         fn erode(surface: &mut Vec<Vec<f64>>, pos: &emath::Vec2, amount: &f32, erosion_radius: &usize){
             // calculate maxima to determine weights
+            // TODO VERY INEFFICIENT
             let mut maxima = Vec::new();
             for (num0, row) in surface.iter().enumerate(){
                 for (num1, cell) in row.iter().enumerate(){
@@ -536,19 +537,18 @@ impl Droplet{
             let sedCap = sedimentCapacity(&deltaheight, &self.pminslope, &self.vel, &self.water, &self.sCF);
             // we deposit if moving uphill or self.sediment > sedCap
             // moving uphill, deposit at old pos to close gap
-            println!("{:?}", self.pos);
-            println!("{}", mean_height(&surface, &self.pos));
+            //println!("{:?}", self.pos);
+            //println!("{}", mean_height(&surface, &self.pos));
             if deltaheight > 0.0{
                 let to_deposit = f32::min(deltaheight, self.sediment);
                 self.sediment -= to_deposit;
                 deposit(surface, &pos_old, &to_deposit);
-                println!("Moved uphill. depositing: {}", to_deposit);
+                //println!("Moved uphill. depositing: {}", to_deposit);
             } else {
                 if self.sediment > sedCap as f32{
                     
                     // drop has more sediment than it can hold -> depositing
                     let to_deposit = (self.sediment - sedCap as f32) * self.deposition_speed;
-                    println!("depositing: {}", to_deposit);
                     self.sediment -= to_deposit;
                     deposit(surface, &pos_old, &to_deposit);
                     //println!("Help! I have more that possible! depositing: {}", to_deposit);                    
@@ -556,7 +556,6 @@ impl Droplet{
                     // if drop has less sediment than it is allowed to, erode from the map
                     let to_erode = f32::min((sedCap as f32 - self.sediment)*self.erosion_speed, -deltaheight);
                     self.sediment += to_erode;
-                    println!("eroding {}", to_erode);
                     erode(surface, &pos_old, &to_erode, &self.erosion_radius);
                     //println!("eroding: {}", to_erode);
                 }
@@ -722,28 +721,43 @@ impl Droplet{
 fn main() {
     // if deltaheight is negative, velocity calculation cant work because square root of a negative number
 
-    let mut a = Surface::new(4);
+    let mut a = Surface::new(8);
+    a.generate(1.3);
+    /*
     for (num0, row) in a.surface.iter_mut().enumerate(){
         for (num1, cell) in row.iter_mut().enumerate(){
             *cell = f64::abs((num0 as f64 - 8.0)) + f64::abs(num1 as f64 - 8.0);
         }
     }
+    */
     //a.write_to_file("test");
     //a.normalize_to_size();
     //println!("{:?}", a.surface);
-    /*
+    a.thermal_erosion(45, 1.0);
+    a.thermal_erosion(45, 1.0);
+    a.thermal_erosion(45, 1.0);
+    a.thermal_erosion(45, 1.0);
+    a.thermal_erosion(45, 1.0);
+    a.thermal_erosion(45, 1.0);
+    a.thermal_erosion(45, 1.0);
+    a.thermal_erosion(45, 1.0);
+    a.normalize_to_size();
+
+    println!("{}", a.fractal_dim(2, 2));
+
     for y in 0..100{
-        for x in 0..10{
-            a.hydraulic_erosion(20)
-        }
+        for x in 0..100{
+            a.hydraulic_erosion(50)
+        }    
+        println!("{}", a.fractal_dim(2, 2));
         a.write_to_image_file(&y.to_string());
         println!("{}", &y.to_string());
     }
-    */
+    
     
     //let mut a = Surface::from(8);
     //a.generate(1.5);
-    let mut drop =  Droplet{
+    /*let mut drop =  Droplet{
         pos: emath::Vec2::from([15.5, 15.5]),
         dir: emath::Vec2::from([0.0, 0.0]),
         vel: 1.0,
@@ -780,4 +794,5 @@ fn main() {
         ////println!("dir: {:?}, {:?}", drop.dir.x, drop.dir.y);
         ////println!("pos: {:?}, {:?}", drop.pos.x, drop.pos.y);
     }
+    */
 }
