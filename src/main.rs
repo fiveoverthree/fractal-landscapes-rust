@@ -450,8 +450,6 @@ impl Droplet{
             } else {
                 return x
             }
-            //println!("Moving in direction of: {}, {}", x.x, x.y);
-            x
         }
         fn deposit(surface: &mut Vec<Vec<f64>>, pos: &emath::Vec2, amount: &f32){
             let cellCordsx = pos.x.floor() as usize;
@@ -471,13 +469,12 @@ impl Droplet{
         fn erode(surface: &mut Vec<Vec<f64>>, pos: &emath::Vec2, amount: &f32, erosion_radius: &usize){
             // calculate maxima to determine weights
             // TODO VERY INEFFICIENT
-            let mut maxima = Vec::new();
+            let mut s:f64 = 0.0;
             for (num0, row) in surface.iter().enumerate(){
                 for (num1, cell) in row.iter().enumerate(){
-                    maxima.push(f64::max(0.0, (*erosion_radius as f64) - (emath::vec2(num0 as f32, num1 as f32) - *pos).length() as f64));
+                    s += f64::max(0.0, (*erosion_radius as f64) - (emath::vec2(num0 as f32, num1 as f32) - *pos).length() as f64);
                 }
             }
-            let s:f64 = maxima.iter().sum();
             // erode
             for (num0, row) in surface.clone().iter().enumerate(){
                 for (num1, _cell) in row.iter().enumerate(){
@@ -511,19 +508,10 @@ impl Droplet{
             self.pos += self.dir;
            
             // drop droplet if it goes out of bounds
-            if self.pos.x < 0.0{
+            if self.pos.x < 0.0 || self.pos.x >= (size as f32 - 1.0) || self.pos.y < 0.0 || self.pos.y >= (size as f32 - 1.0){
                 break;
             }
-            if self.pos.x >= (size as f32 - 1.0){
-                break;
-            }
-            if self.pos.y < 0.0{
-                break;
-            }
-            if self.pos.y >= (size as f32 - 1.0){
-                break;
-            }
-
+            
             // exit if not moving
             if self.dir.length() == 0.0{
                 println!("exiting");
@@ -533,187 +521,31 @@ impl Droplet{
 
             let h_new = mean_height(&surface, &self.pos);
             let deltaheight = h_new-h_old;
-            //println!("deltaheight: {}", deltaheight);
             let sedCap = sedimentCapacity(&deltaheight, &self.pminslope, &self.vel, &self.water, &self.sCF);
             // we deposit if moving uphill or self.sediment > sedCap
             // moving uphill, deposit at old pos to close gap
-            //println!("{:?}", self.pos);
-            //println!("{}", mean_height(&surface, &self.pos));
             if deltaheight > 0.0{
                 let to_deposit = f32::min(deltaheight, self.sediment);
                 self.sediment -= to_deposit;
                 deposit(surface, &pos_old, &to_deposit);
-                //println!("Moved uphill. depositing: {}", to_deposit);
             } else {
                 if self.sediment > sedCap as f32{
-                    
                     // drop has more sediment than it can hold -> depositing
                     let to_deposit = (self.sediment - sedCap as f32) * self.deposition_speed;
                     self.sediment -= to_deposit;
                     deposit(surface, &pos_old, &to_deposit);
-                    //println!("Help! I have more that possible! depositing: {}", to_deposit);                    
                 } else {
                     // if drop has less sediment than it is allowed to, erode from the map
                     let to_erode = f32::min((sedCap as f32 - self.sediment)*self.erosion_speed, -deltaheight);
                     self.sediment += to_erode;
                     erode(surface, &pos_old, &to_erode, &self.erosion_radius);
-                    //println!("eroding: {}", to_erode);
                 }
             }
             // calculate new speed
-            //println!("{:?}", deltaheight);
-            //println!("{:?}", self.vel);
             // CHANGED
             self.vel = f32::sqrt(f32::max(self.vel.powf(2.0) - (deltaheight*self.gravity), 0.0));
-            //println!("{:?}", self.vel);
-            //println!("----");
             // calculate new water level
             self.water *= 1.0-self.evaporation_speed;
-
-        }
-    }
-    fn simulate_temp(&mut self, surface: &mut Vec<Vec<f64>>, iterations: usize, size: usize, to_apply: &mut Vec<Vec<f64>>) {
-        // Calculates gradient vector for given position
-        fn gradient(surface: &Vec<Vec<f64>>, position: &emath::Vec2) -> emath::Vec2{
-            let cellCordsx = position.x.floor() as usize;
-            let cellCordsy = position.y.floor() as usize;
-            let x = position.x - cellCordsx as f32;
-            let  y = position.y - cellCordsy as f32;
-            let heightNW = surface[cellCordsx][cellCordsy] as f32;
-            let heightNE = surface[cellCordsx + 1][cellCordsy] as f32;
-            let heightSW = surface[cellCordsx][cellCordsy + 1] as f32;
-            let heightSE = surface[cellCordsx + 1][cellCordsy + 1] as f32;
-            //println!("neighbour_heigths: {}, {}, {}, {}", heightNW, heightNE, heightSW, heightSE);
-            let gradientx = (heightSE - heightSW) * (1.0 - y) + (heightNE - heightNW) * y;
-            let gradienty = (heightSW - heightNW) * (1.0 - x) + (heightSE - heightNE) * x;
-            emath::Vec2::from([gradientx, gradienty])
-        }
-        // return sthe new direction in which the drop is flowing in
-        fn dirnew(dir: &emath::Vec2, inertia: &f32, position: &emath::Vec2, surface: &Vec<Vec<f64>>) -> emath::Vec2{
-            let x = (*dir * *inertia) - gradient(&surface, &position)*(1.0 - *inertia);
-            if x.length() > 0.01{
-                return emath::Vec2::new(x.x / f32::sqrt(x.x*x.x+x.y*x.y), x.y / f32::sqrt(x.x*x.x+x.y*x.y))
-            } else {
-                return x
-            }
-            //println!("Moving in direction of: {}, {}", x.x, x.y);
-            x
-        }
-        fn deposit(surface: &mut Vec<Vec<f64>>, pos: &emath::Vec2, amount: &f32){
-            let cellCordsx = pos.x.floor() as usize;
-            let cellCordsy = pos.y.floor() as usize;
-            let x = pos.x - cellCordsx as f32;
-            let y = pos.y - cellCordsy as f32;
-            //println!("x, y: {}, {}", x, y);
-            // NW
-            surface[cellCordsx][cellCordsy] += (amount * x * y) as f64;
-            // NE
-            surface[cellCordsx + 1][cellCordsy] += (amount * (1.0 - x) * y) as f64;
-            // SW
-            surface[cellCordsx][cellCordsy + 1] += (amount * x * (1.0 - y)) as f64;
-            // SE
-            surface[cellCordsx + 1][cellCordsy + 1] += (amount * (1.0 - x) * (1.0 - y)) as f64;
-        }
-        fn erode(surface: &mut Vec<Vec<f64>>, pos: &emath::Vec2, amount: &f32, erosion_radius: &usize){
-            // calculate maxima to determine weights
-            let mut maxima = Vec::new();
-            for (num0, row) in surface.iter().enumerate(){
-                for (num1, cell) in row.iter().enumerate(){
-                    maxima.push(f64::max(0.0, (*erosion_radius as f64) - (emath::vec2(num0 as f32, num1 as f32) - *pos).length() as f64));
-                }
-            }
-            let s:f64 = maxima.iter().sum();
-            // erode
-            for (num0, row) in surface.clone().iter().enumerate(){
-                for (num1, _cell) in row.iter().enumerate(){
-                    surface[num0][num1] -= (f64::max(0.0, *erosion_radius as f64 - ((emath::vec2(num0 as f32, num1 as f32) - *pos)).length() as f64)/s)*(*amount as f64);
-                }
-            }
-        }
-        fn mean_height(surface: &Vec<Vec<f64>>, position: &emath::Vec2) -> f32{
-            let cellCordsx = position.x.floor() as usize;
-            let cellCordsy = position.y.floor() as usize;
-            let x = position.x - cellCordsx as f32;
-            let  y = position.y - cellCordsy as f32;
-            let heightNW = surface[cellCordsx][cellCordsy] as f32;
-            let heightNE = surface[cellCordsx + 1][cellCordsy] as f32;
-            let heightSW = surface[cellCordsx][cellCordsy + 1] as f32;
-            let heightSE = surface[cellCordsx + 1][cellCordsy + 1] as f32;
-            // weighted arithmetic mean: Sum(weights*heights)/sum(weights)
-            heightNW*((1.0-x) * (1.0-y)) 
-            + heightNE*( x * (1.0-y)) 
-            + heightSE*(x*y)
-            + heightSW*((1.0-x) * y)
-        }
-        fn sedimentCapacity(h_diff: &f32, pminslope: &f32, vel: &f32, water: &f32, sedimentCapacityFactor: &f32) -> f64{
-            (f32::max(-h_diff, *pminslope) * vel * water * sedimentCapacityFactor) as f64
-        }
-        for x in 0..iterations{
-            let h_old = mean_height(&surface, &self.pos);
-            let pos_old = emath::vec2(self.pos.x.clone(), self.pos.y.clone());
-            // update position
-            println!("pos: {:?}", self.pos);
-            self.dir = dirnew(&self.dir, &self.inertia, &self.pos, &surface);
-            self.pos += self.dir;
-           
-            // drop droplet if it goes out of bounds
-            if self.pos.x < 0.0{
-                break;
-            }
-            if self.pos.x >= (size as f32 - 1.0){
-                break;
-            }
-            if self.pos.y < 0.0{
-                break;
-            }
-            if self.pos.y >= (size as f32 - 1.0){
-                break;
-            }
-
-            // exit if not moving
-            if self.dir.length() == 0.0{
-                println!("exiting");
-                break;
-            }
-            
-
-            let h_new = mean_height(&surface, &self.pos);
-            let deltaheight = h_new-h_old;
-            //println!("deltaheight: {}", deltaheight);
-            let sedCap = sedimentCapacity(&deltaheight, &self.pminslope, &self.vel, &self.water, &self.sCF);
-            // we deposit if moving uphill or self.sediment > sedCap
-            // moving uphill, deposit at old pos to close gap
-            if deltaheight >= 0.0{
-                let to_deposit = f32::min(deltaheight, self.sediment);
-                self.sediment -= to_deposit;
-                deposit(to_apply, &pos_old, &to_deposit);
-                //println!("Moving uphill. depositing: {}", to_deposit);
-            } else {
-                if self.sediment > sedCap as f32{
-                    
-                    // drop has more sediment than it can hold -> depositing
-                    let to_deposit = (self.sediment - sedCap as f32) * self.deposition_speed;
-                    self.sediment -= to_deposit;
-                    deposit(to_apply, &pos_old, &to_deposit);
-                    //println!("Help! I have more that possible! depositing: {}", to_deposit);                    
-                } else {
-                    // if drop has less sediment than it is allowed to, erode from the map
-                    let to_erode = f32::min((sedCap as f32 - self.sediment)*self.erosion_speed, -deltaheight);
-                    self.sediment += to_erode;
-                    erode(to_apply, &pos_old, &to_erode, &self.erosion_radius);
-                    //println!("eroding: {}", to_erode);
-                }
-            }
-            // calculate new speed
-            //println!("{:?}", deltaheight);
-            //println!("{:?}", self.vel);
-            self.vel = f32::sqrt(f32::max(self.vel.powf(2.0)+ (deltaheight*self.gravity), 0.0));
-            //println!("{:?}", self.vel);
-            //println!("----");
-            // calculate new water level
-            self.water *= 1.0-self.evaporation_speed;
-            //println!("{}", self.sediment);
-
         }
     }
 }
@@ -743,56 +575,12 @@ fn main() {
     a.thermal_erosion(45, 1.0);
     a.normalize_to_size();
 
-    println!("{}", a.fractal_dim(2, 2));
 
     for y in 0..100{
         for x in 0..100{
             a.hydraulic_erosion(50)
         }    
-        println!("{}", a.fractal_dim(2, 2));
         a.write_to_image_file(&y.to_string());
         println!("{}", &y.to_string());
     }
-    
-    
-    //let mut a = Surface::from(8);
-    //a.generate(1.5);
-    /*let mut drop =  Droplet{
-        pos: emath::Vec2::from([15.5, 15.5]),
-        dir: emath::Vec2::from([0.0, 0.0]),
-        vel: 1.0,
-        water: 1.0,
-        sediment: 0.0,
-        inertia: 0.0, // high value = old dir taken into account more. range 0..1
-        pminslope: 0.01,
-        sCF: 2.0,
-        erosion_radius: 1,
-        deposition_speed: 0.1, // max 1, only when drop suddenly has more sediment than it can hold
-        erosion_speed: 0.5, // max 1
-        gravity: 10.0,
-        evaporation_speed: 0.1,
-    };
-    for x in 0..30{
-        if drop.pos.x < 0.0{
-            println!("Breaking loop because x < 0");
-            break;
-        }
-        if drop.pos.x >= (a.size as f32 - 1.0){
-            println!("Breaking loop because x >");
-            break;
-        }
-        if drop.pos.y < 0.0{
-            println!("Breaking loop because y < 0");
-            break;
-        }
-        if drop.pos.y >= (a.size as f32 - 1.0){
-            println!("Breaking loop because y>");
-            break;
-        }
-        drop.simulate(&mut a.surface, 1, a.size);
-        a.write_to_image_file(&x.to_string());
-        ////println!("dir: {:?}, {:?}", drop.dir.x, drop.dir.y);
-        ////println!("pos: {:?}, {:?}", drop.pos.x, drop.pos.y);
-    }
-    */
 }
