@@ -57,7 +57,7 @@ fn hydraulics(){
     for step in 0..=erosion_steps{
         append_results_to_file(Vec::new(), "hydraulic");
         // erode 500 times (because this is very slow)
-        for substep in 0..200{
+        for substep in 0..100{
             radii_surfaces.iter_mut().enumerate().for_each(|(i, row)|{
                 row.par_iter_mut().for_each(|s|s.hydraulic_erosion(30, 0.01, usize::pow(2, i as u32)));
             });
