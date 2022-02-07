@@ -2,6 +2,7 @@ use rand_distr::num_traits::Pow;
 use rand_distr::{Normal, Distribution};
 use rand::{thread_rng, Rng};
 use linreg::linear_regression_of;
+use std::fmt::Debug;
 use std::io::Write;
 use std::io::prelude::*;
 use std::fs::File;
@@ -9,8 +10,11 @@ use std::io::{self, BufRead};
 use std::path::Path;
 use image::{ImageBuffer, Luma};
 use emath;
+use rayon::prelude::*;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
 
-
+#[derive(Debug)]
 struct Surface{
     sizemultiplier:usize,
     size:usize,
@@ -550,37 +554,59 @@ impl Droplet{
     }
 }
 
-fn main() {
-    // if deltaheight is negative, velocity calculation cant work because square root of a negative number
-
-    let mut a = Surface::new(8);
-    a.generate(1.3);
-    /*
-    for (num0, row) in a.surface.iter_mut().enumerate(){
-        for (num1, cell) in row.iter_mut().enumerate(){
-            *cell = f64::abs((num0 as f64 - 8.0)) + f64::abs(num1 as f64 - 8.0);
-        }
+fn append_results_to_file(res:Vec<f64>, filename:&str) -> (){
+    let mut line = String::new();
+    for item in res{
+        line.push_str(&item.to_string());
+        line.push(',');
     }
-    */
-    //a.write_to_file("test");
-    //a.normalize_to_size();
-    //println!("{:?}", a.surface);
-    a.thermal_erosion(45, 1.0);
-    a.thermal_erosion(45, 1.0);
-    a.thermal_erosion(45, 1.0);
-    a.thermal_erosion(45, 1.0);
-    a.thermal_erosion(45, 1.0);
-    a.thermal_erosion(45, 1.0);
-    a.thermal_erosion(45, 1.0);
-    a.thermal_erosion(45, 1.0);
-    a.normalize_to_size();
+    line.pop();
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(filename.to_owned() + ".csv")
+        .unwrap();
 
+    if let Err(e) = writeln!(file, "{}", line) {
+        eprintln!("Couldn't write to file: {}", e);
+    }
+}
 
-    for y in 0..100{
-        for x in 0..100{
-            a.hydraulic_erosion(50)
-        }    
-        a.write_to_image_file(&y.to_string());
-        println!("{}", &y.to_string());
+fn main() {
+    // variables
+    let sizemultiplier = 9;
+    let mut dH = 1.0;
+    let erosion_steps = 1000;
+    // list of all steps (dH) we are going to calculate
+    let mut dim_steps:Vec<Vec<Surface>> = (0..=9).map(|_x| {
+        (0..=9).map(|_x| {Surface::new(sizemultiplier)}).collect()
+    }).collect();
+    // generating all the surfaces
+    for mut testrow in&mut dim_steps{
+        testrow.par_iter_mut().for_each(|sf|{
+            sf.generate(dH)           
+        });
+        dH += 0.1;
+    }
+    // fractal dimension calculation
+    dim_steps.iter().for_each(|row|{
+        let dims_row = row.par_iter().map(|s|s.fractal_dim(4, 2)).collect();
+        // append data to csv file
+        append_results_to_file(dims_row, "results");
+    });
+    // thermal erosion
+    for _ in 0..=erosion_steps{ 
+        append_results_to_file(Vec::new(), "results");
+        // erode one time
+        dim_steps.iter_mut().for_each(|row|{
+            row.par_iter_mut().for_each(|s|s.thermal_erosion(45, 2.0));
+        });
+        // fractal dimension calculation
+         dim_steps.iter().for_each(|row|{
+             let dims_row = row.par_iter().map(|s|s.fractal_dim(4, 2)).collect();
+             // append data to csv file
+             append_results_to_file(dims_row, "results");
+         });
+  
     }
 }
