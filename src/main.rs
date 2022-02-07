@@ -7,7 +7,11 @@ use std::io::prelude::*;
 /// REMINDER: H is inverse!!
 
 fn main(){
-    different_thermal_erosion_talus()
+    //different_H_and_thermal_erosion();
+    println!("Finished h");
+    //different_thermal_erosion_talus();
+    println!("Finished talus");
+    hydraulics();
 }
 
 fn append_results_to_file(res:Vec<f64>, filename:&str) -> (){
@@ -32,10 +36,10 @@ fn hydraulics(){
      // variables
     let sizemultiplier = 9;
     let h = 0.2;
-    let erosion_steps = 100;
+    let erosion_steps = 10000;
     // list of all erosion radii that are goint to get calculated (radii 1,2,4,8)
     let mut radii_surfaces:Vec<Vec<Surface>> = (0..=3).map(|_x| {
-        (0..=16).map(|_x| {Surface::new(sizemultiplier)}).collect()
+        (0..=15).map(|_x| {Surface::new(sizemultiplier)}).collect()
     }).collect();
     // generating all the surfaces
     for mut row in &mut radii_surfaces{
@@ -53,10 +57,11 @@ fn hydraulics(){
     for step in 0..=erosion_steps{
         append_results_to_file(Vec::new(), "hydraulic");
         // erode 500 times (because this is very slow)
-        for _ in 0..500{
+        for substep in 0..200{
             radii_surfaces.iter_mut().enumerate().for_each(|(i, row)|{
                 row.par_iter_mut().for_each(|s|s.hydraulic_erosion(30, 0.01, usize::pow(2, i as u32)));
             });
+            println!("Substep done {}", substep)
         }
         println!("Finished erosion for step {}, calculating fractal dimension...", step);
         // fractal dimension calculation
@@ -114,7 +119,7 @@ fn different_H_and_thermal_erosion() {
     // variables
     let sizemultiplier = 9;
     let mut dH = 1.0;
-    let erosion_steps = 1000;
+    let erosion_steps = 200;
     // list of all steps (dH) we are going to calculate
     let mut dim_steps:Vec<Vec<Surface>> = (0..=9).map(|_x| {
         (0..=9).map(|_x| {Surface::new(sizemultiplier)}).collect()
