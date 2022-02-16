@@ -7,11 +7,34 @@ use std::io::prelude::*;
 /// REMINDER: H is inverse!!
 
 fn main(){
-    //different_H_and_thermal_erosion();
-    println!("Finished h");
-    //different_thermal_erosion_talus();
-    println!("Finished talus");
-    hydraulics();
+    plot_surfaces()
+}
+
+fn plot_surfaces(){
+    /*let mut a = Surface::new(9);
+    a.generate(0.8);
+    a.normalize_to_size();
+    a.write_to_image_file("h08");
+    let mut b = Surface::new(9);
+    b.generate(0.2);
+    b.normalize_to_size();
+    b.write_to_image_file("h02");*/
+    /*let mut a = Surface::new(9);
+    a.generate(0.35);
+    a.normalize_to_size();
+    a.write_to_image_file("before-thermal");
+    for _ in 0..300{
+        a.thermal_erosion(45, 2.0);
+    }
+    a.write_to_image_file("after-thermal");*/
+    let mut a = Surface::new(5);
+    a.generate(0.2);
+    a.normalize_to_size();
+    a.write_to_image_file("before-hydraulic");
+    for step in 0..10000{
+        a.hydraulic_erosion(30, 0.1, 2);
+    }
+    a.write_to_image_file("after-hydraulic")
 }
 
 fn append_results_to_file(res:Vec<f64>, filename:&str) -> (){
@@ -152,4 +175,33 @@ fn different_H_and_thermal_erosion() {
          });
   
     }
+}
+
+fn different_thermal_erosion_talus_only_hundreth(){
+    // variables
+    let sizemultiplier = 9;
+    let h = 0.2;
+    let erosion_steps = 100;
+    // list of all steps (dH) we are going to calculate
+    let mut dim_steps:Vec<Vec<Surface>> = (0..=15).map(|_x| {
+        (0..=63).map(|_x| {Surface::new(sizemultiplier)}).collect()
+    }).collect();
+    // generating all the surfaces
+    for mut testrow in&mut dim_steps{
+        testrow.par_iter_mut().for_each(|sf|{
+            sf.generate(h)           
+        });
+    }
+    // thermal erosion
+    for step in 0..=erosion_steps{ 
+        dim_steps.iter_mut().enumerate().for_each(|(i, row)|{
+            row.par_iter_mut().for_each(|s|s.thermal_erosion((i+1)*5, 1.0));
+        });
+        println!("step {} done", step)
+    }
+    dim_steps.iter().for_each(|row|{
+        let dims_row = row.par_iter().map(|s|s.fractal_dim(4, 2)).collect();
+        // append data to csv file
+        append_results_to_file(dims_row, "talus_after_100");
+    });
 }

@@ -404,7 +404,7 @@ impl Surface {
         drop.simulate(&mut self.surface, iterations, self.size)
     }
     // normalizes the array, so x,y,z have the same dimensions
-    fn normalize_to_size(&mut self){
+    pub fn normalize_to_size(&mut self){
         let len = self.surface.len() as f64;
         for row in self.surface.iter_mut(){
             for cell in row.iter_mut(){
